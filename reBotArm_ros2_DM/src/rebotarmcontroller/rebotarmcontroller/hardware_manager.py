@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 import time
 import sys
@@ -131,7 +132,17 @@ class HardwareManager:
 
     @staticmethod
     def _workspace_root() -> Path:
-        return Path(__file__).resolve().parents[3]
+        workspace = os.environ.get("REBOTARM_ROS2_WORKSPACE", "").strip()
+        if workspace:
+            return Path(workspace).expanduser().resolve()
+
+        # A copied colcon install has a different depth from the source tree.
+        # Locate the workspace by its environment helper instead of that depth.
+        module_path = Path(__file__).resolve()
+        for parent in module_path.parents:
+            if (parent / "scripts" / "source_rebotarm_env.sh").is_file():
+                return parent
+        return module_path.parents[3]
 
     @classmethod
     def _sdk_candidates(cls) -> list[Path]:

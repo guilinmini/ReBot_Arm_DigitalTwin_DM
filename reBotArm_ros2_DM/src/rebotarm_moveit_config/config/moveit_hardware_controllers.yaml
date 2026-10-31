@@ -9,6 +9,7 @@ moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControll
 moveit_simple_controller_manager:
   controller_names:
     - rebotarm
+    - rebotarm/gripper
 
   rebotarm:
     action_ns: follow_joint_trajectory
@@ -21,3 +22,11 @@ moveit_simple_controller_manager:
       - joint4
       - joint5
       - joint6
+
+  rebotarm/gripper:
+    action_ns: moveit_command
+    type: GripperCommand
+    default: true
+    command_joint: finger_left
+    joints:
+      - finger_left

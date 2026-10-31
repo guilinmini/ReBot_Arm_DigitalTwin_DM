@@ -446,7 +446,8 @@ q / quit    退出
 |---|---|---|---|
 | `/rebotarm/move_to_pose` | `rebotarm_msgs/action/MoveToPose` | 末端笛卡尔位姿轨迹，内部走 `ArmEndPos.move_to_traj(...)` | 适合应用层发 `Pose + duration` |
 | `/rebotarm/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | 标准关节轨迹接口，按输入轨迹点定时下发，并做首点/速度/到位校验 | 适合上层规划器或 `move_to.py` |
-| `/rebotarm/gripper/command` | `control_msgs/action/GripperCommand` | 标准夹爪 action | 适合行为树、任务编排或 MoveIt 风格接口 |
+| `/rebotarm/gripper/command` | `control_msgs/action/GripperCommand` | 标准夹爪 action | 总开口 0～0.10 m，适合行为树和任务编排 |
+| `/rebotarm/gripper/moveit_command` | `control_msgs/action/GripperCommand` | MoveIt 夹爪 action | `finger_left` 单指行程 0～0.05 m，自动转换为总开口 |
 
 示例：
 

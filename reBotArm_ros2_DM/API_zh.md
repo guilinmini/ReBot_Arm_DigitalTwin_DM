@@ -41,6 +41,7 @@
 | Action | `/rebotarm/move_to_pose` | `rebotarm_msgs/action/MoveToPose` | 末端位姿轨迹 |
 | Action | `/rebotarm/follow_joint_trajectory` | `control_msgs/action/FollowJointTrajectory` | 标准关节轨迹 |
 | Action | `/rebotarm/gripper/command` | `control_msgs/action/GripperCommand` | 标准夹爪 action |
+| Action | `/rebotarm/gripper/moveit_command` | `control_msgs/action/GripperCommand` | MoveIt 单指行程适配接口 |
 | Command Topic | `/rebotarm/joints/<joint>/cmd/mit` | `rebotarm_msgs/msg/JointMitCmd` | 单关节 MIT raw command |
 | Command Topic | `/rebotarm/joints/<joint>/cmd/pos_vel` | `rebotarm_msgs/msg/JointPosVelCmd` | 单关节位置速度 raw command |
 | Command Topic | `/rebotarm/joints/<joint>/cmd/vel` | `rebotarm_msgs/msg/JointVelCmd` | 单关节速度 raw command |
@@ -585,10 +586,11 @@ ros2 action send_goal /rebotarm/follow_joint_trajectory \
 control_msgs/action/GripperCommand
 ```
 
-说明：标准夹爪 action。适合行为树、任务编排或 MoveIt 风格接口。
+说明：标准夹爪 action，适合行为树和任务编排。
 
-Goal 中 `command.position` 单位为夹爪电机角度 rad。`command.max_effort` 为标准
-action 字段，当前 ROS 适配层直接使用 SDK POS_VEL 控制，暂不使用该字段做力矩限制。
+Goal 中 `command.position` 为夹爪总开口，单位 m，范围为 0～0.10。
+反馈和结果中的 `position` 同样为总开口。`command.max_effort` 传递给硬件夹爪控制层；
+0 使用其默认设置。等待 5 秒仍未到达目标时，action 返回失败。
 
 示例：
 
@@ -596,6 +598,17 @@ action 字段，当前 ROS 适配层直接使用 SDK POS_VEL 控制，暂不使�
 ros2 action send_goal /rebotarm/gripper/command control_msgs/action/GripperCommand \
   "{command: {position: 0.0, max_effort: 0.0}}"
 ```
+
+### `/rebotarm/gripper/moveit_command`
+
+类型同为 `control_msgs/action/GripperCommand`。这是 MoveIt 真机夹爪控制器使用的接口，
+`command.position` 对应 URDF 的 `finger_left` 单指行程，范围为 0～0.05 m。
+适配器将目标乘以 2 后交给总开口控制接口，反馈和结果再除以 2。
+例如 MoveIt 的 `open` 目标 0.05 m 对应总开口 0.10 m。
+
+`moveit_hardware_controllers.yaml` 将 `finger_left` 注册到该接口。
+修改后须重启真机驱动和 MoveIt；原 `/gripper/command` 的总开口约定保持不变。
+使用 `GripperCommand` 执行规划的最后一个夹爪目标，不逐点跟踪规划轨迹的时间参数。
 
 ## 5. 低层 Command Topic
 

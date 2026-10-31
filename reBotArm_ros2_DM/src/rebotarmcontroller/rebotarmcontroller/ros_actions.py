@@ -48,6 +48,27 @@ class ArmActions:
             cancel_callback=self.cancel_gripper_command,
             callback_group=node.reentrant_group,
         )
+        # MoveIt plans finger_left travel; the hardware API uses total opening.
+        self._moveit_gripper_command_server = ActionServer(
+            node,
+            GripperCommand,
+            f"/{namespace}/gripper/moveit_command",
+            execute_callback=self.execute_moveit_gripper_command,
+            goal_callback=self.moveit_gripper_goal_callback,
+            cancel_callback=self.cancel_gripper_command,
+            callback_group=node.reentrant_group,
+        )
+
+    def moveit_gripper_goal_callback(self, goal_request):
+        command = goal_request.command
+        if (
+            not np.isfinite(command.position)
+            or not 0.0 <= command.position <= 0.05
+            or not np.isfinite(command.max_effort)
+            or command.max_effort < 0.0
+        ):
+            return GoalResponse.REJECT
+        return GoalResponse.ACCEPT
 
     def goal_callback(self, _goal_request):
         return GoalResponse.ACCEPT
@@ -422,13 +443,18 @@ class ArmActions:
             ]
         return point
 
-    def execute_gripper_command(self, goal_handle):
+    def execute_moveit_gripper_command(self, goal_handle):
+        return self.execute_gripper_command(goal_handle, position_scale=2.0)
+
+    def execute_gripper_command(self, goal_handle, *, position_scale: float = 1.0):
         goal = goal_handle.request.command
         result = GripperCommand.Result()
         feedback = GripperCommand.Feedback()
 
         try:
-            self._hardware.set_gripper_target(goal.position, goal.max_effort)
+            self._hardware.set_gripper_target(
+                goal.position * position_scale, goal.max_effort
+            )
         except Exception:
             goal_handle.abort()
             result.position = 0.0
@@ -443,7 +469,7 @@ class ArmActions:
         while time.monotonic() - start < 5.0:
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
-                result.position = self._hardware.gripper_position_m()
+                result.position = self._hardware.gripper_position_m() / position_scale
                 result.effort = self._hardware.get_gripper_state()[2]
                 result.stalled = stalled
                 result.reached_goal = False
@@ -453,7 +479,7 @@ class ArmActions:
             effort = self._hardware.get_gripper_state()[2]
             reached = self._hardware.gripper_reached_target()
             stalled = abs(pos - last_pos) < 1e-4 and abs(effort) >= float(goal.max_effort)
-            feedback.position = pos
+            feedback.position = pos / position_scale
             feedback.effort = effort
             feedback.stalled = stalled
             feedback.reached_goal = reached
@@ -463,9 +489,12 @@ class ArmActions:
             last_pos = pos
             time.sleep(0.05)
 
-        result.position = self._hardware.gripper_position_m()
+        result.position = self._hardware.gripper_position_m() / position_scale
         result.effort = self._hardware.get_gripper_state()[2]
         result.stalled = stalled
         result.reached_goal = self._hardware.gripper_reached_target()
-        goal_handle.succeed()
+        if result.reached_goal:
+            goal_handle.succeed()
+        else:
+            goal_handle.abort()
         return result

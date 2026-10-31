@@ -51,7 +51,8 @@ class FakeReBotArmDriver(Node):
         self.joint_state_pub = self.create_publisher(
             JointState,
             f"/{self.namespace}/joint_states",
-            qos_profile_sensor_data,
+            # Match the hardware publisher so MoveIt can consume fake states.
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE),
         )
         self.joint_motor_pubs = {
             name: self.create_publisher(

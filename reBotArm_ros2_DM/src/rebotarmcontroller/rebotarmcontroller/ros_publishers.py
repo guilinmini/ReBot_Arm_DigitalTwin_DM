@@ -17,7 +17,9 @@ class JointStatePublisher:
         self._publisher = node.create_publisher(
             JointState,
             f"/{namespace}/joint_states",
-            node.sensor_qos,
+            # MoveIt Humble requests reliable joint states. Reliable writers
+            # also serve best-effort consumers such as the web and TF nodes.
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE),
             callback_group=node.reentrant_group,
         )
         self._joint_state_publishers = {

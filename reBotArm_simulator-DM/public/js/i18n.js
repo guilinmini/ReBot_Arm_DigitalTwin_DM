@@ -110,7 +110,7 @@
     'help.s7.title': { zh: '七、诊断与日志', en: '7. Diagnostics & Log' },
     'help.s7.diag': { zh: '<b>检测 ROS</b>：扫描当前 ROS 环境的 topic 和 service，检查关键接口是否可用。', en: '<b>Detect ROS</b>: Scans the current ROS topics and services and checks whether key interfaces are available.' },
     'help.s7.log': { zh: '<b>ROS 实时日志</b>：显示所有 ROS 操作的请求和响应，包括成功/失败/警告。排查问题时先看这里。', en: '<b>ROS Live Log</b>: Shows every ROS request and response — success / failure / warning. Look here first when troubleshooting.' },
-    'help.s7.preset': { zh: '<b>姿态预设</b>：预设的关节角度组合，一键到达常用姿态。', en: '<b>Pose presets</b>: Stored joint-angle combinations; one tap reaches a common pose.' },
+    'help.s7.preset': { zh: '<b>姿态预设</b>：预设之间按关节角差自动计算时长，以限速平滑轨迹切换，夹爪同步渐变。', en: '<b>Pose presets</b>: Transitions use an automatically timed, speed-limited smooth trajectory with synchronized gripper motion.' },
     'help.warn.title': { zh: '⚠ 安全须知', en: '⚠ Safety Notes' },
     'help.warn.1': { zh: '1. 首次使用真机时，先用 Fake Driver 验证关节方向和限位。', en: '1. Before using the real arm, verify joint directions and limits with the Fake Driver first.' },
     'help.warn.2': { zh: '2. 连接真机控制器时命令会驱动真实硬件，请谨慎操作。', en: '2. With the real controller, commands drive real hardware — operate with care.' },

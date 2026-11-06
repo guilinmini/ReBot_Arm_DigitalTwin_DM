@@ -158,6 +158,7 @@ const FOLLOW_JOINT_TRAJECTORY_ACTION = `/${NS}/follow_joint_trajectory`;
  let gripperAssistActive = false;
  let teachingReplayFeedbackActive = false;
  let activeTeachingGripperReplay = null;
+ let activePresetGripperTransition = null;
  let trajectoryBusy = false;
  let trajectoryBusyLabel = '';
  let trajectoryBusyPromise = null;
@@ -910,6 +911,14 @@ const FOLLOW_JOINT_TRAJECTORY_ACTION = `/${NS}/follow_joint_trajectory`;
     const names = [...JOINT_NAMES, 'gripper'].filter((name) => typeof joints[name] === 'number' && Number.isFinite(joints[name]));
     if (!names.length) return;
 
+    if (command.source === 'preset' && trajectoryBusy) {
+      warnTrajectoryBusy();
+      if (window.reBotSim && typeof window.reBotSim.cancelPendingMove === 'function') {
+        window.reBotSim.cancelPendingMove();
+      }
+      return;
+    }
+
     const holdUntil = performance.now() + MIRROR_HOLD_MS;
     const holdDragPhysics = command.source === 'tcp-drag-commit';
     names.forEach((name) => {
@@ -927,6 +936,11 @@ const FOLLOW_JOINT_TRAJECTORY_ACTION = `/${NS}/follow_joint_trajectory`;
       physicsDragHoldUntil = holdUntil;
     }
 
+    if (command.source === 'preset') {
+      void runSmoothPresetTransition(command, joints);
+      return;
+    }
+
     names.forEach((name) => {
       lastSent.set(name, 0);
       if (name === 'gripper') {
@@ -937,6 +951,76 @@ const FOLLOW_JOINT_TRAJECTORY_ACTION = `/${NS}/follow_joint_trajectory`;
    });
     writeLog(t('log.jointBatch', {label: command.label || command.source || t('log.batchDefault'), n: names.length}), 'ok');
  }
+
+  async function runSmoothPresetTransition(command, joints) {
+    const start = getCurrentRosPositions();
+    const goal = JOINT_NAMES.map((name, index) => {
+      const value = Number(joints[name]);
+      return Number.isFinite(value) ? value : start[index];
+    });
+    const maxDelta = goal.reduce(
+      (largest, value, index) => Math.max(largest, Math.abs(value - start[index])),
+      0
+    );
+    const requestedDuration = clamp(
+      Number(command.duration_ms) / 1000 || getTrajectoryDuration(),
+      1,
+      30
+    );
+    // Keep the smoothstep peak slightly below the controller's 0.60 rad/s
+    // general action limit so the arm and gripper stay on the same timeline.
+    const duration = clamp(
+      Math.max(requestedDuration, 1.5 * maxDelta / 0.55),
+      1,
+      30
+    );
+    const playback = { cancelled: false };
+    activePresetGripperTransition = playback;
+    const gripperGoal = Number(joints.gripper);
+    const simAngles = window.reBotSim && typeof window.reBotSim.getAngles === 'function'
+      ? window.reBotSim.getAngles()
+      : {};
+    const gripperStart = readGripperFeedbackPosition(simAngles.gripper);
+    const points = buildSmoothJointMovePoints(start, goal, duration);
+    const label = `${command.label || '姿态预设'}（平滑 ${duration.toFixed(1)} 秒）`;
+
+    try {
+      const trajectoryTask = sendTrajectory(points, label);
+      const gripperTask = Number.isFinite(gripperGoal)
+        ? replaySmoothPresetGripper(gripperStart, gripperGoal, duration, playback)
+        : Promise.resolve(true);
+      const result = await trajectoryTask;
+      const armSucceeded = trajectoryResultSucceeded(result);
+      if (!armSucceeded) playback.cancelled = true;
+      await gripperTask;
+      if (armSucceeded && !playback.cancelled) {
+        writeLog(`${command.label || '姿态预设'}平滑切换完成`, 'ok');
+      }
+    } catch (error) {
+      const message = `${command.label || '姿态预设'}切换失败：${error && error.message ? error.message : error}`;
+      setMessage(message);
+      writeLog(message, 'error');
+    } finally {
+      playback.cancelled = true;
+      if (activePresetGripperTransition === playback) activePresetGripperTransition = null;
+    }
+  }
+
+  async function replaySmoothPresetGripper(start, goal, duration, playback) {
+    const from = clamp(Number(start), CLOSE_GRIPPER_M, OPEN_GRIPPER_M);
+    const to = clamp(Number(goal), CLOSE_GRIPPER_M, OPEN_GRIPPER_M);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return false;
+    const startedAt = performance.now();
+    const durationMs = Math.max(1, duration * 1000);
+    while (!playback.cancelled) {
+      const ratio = clamp((performance.now() - startedAt) / durationMs, 0, 1);
+      const eased = ratio * ratio * (3 - 2 * ratio);
+      publishTeachingReplayGripper(from + (to - from) * eased);
+      if (ratio >= 1) return true;
+      await sleep(50);
+    }
+    return false;
+  }
 
   async function checkIk() {
     if (!controlAllowed(true)) return;
@@ -1118,10 +1202,19 @@ const FOLLOW_JOINT_TRAJECTORY_ACTION = `/${NS}/follow_joint_trajectory`;
     const simReplayActive = window.reBotSim
       && typeof window.reBotSim.isTeachingReplayActive === 'function'
       && window.reBotSim.isTeachingReplayActive();
-    if (!trajectoryBusy && !lowLevelPlayback && !simReplayActive) return Promise.resolve();
+    if (
+      !trajectoryBusy
+      && !lowLevelPlayback
+      && !simReplayActive
+      && !activePresetGripperTransition
+    ) return Promise.resolve();
 
     trajectoryCancelRequested = true;
     if (activeTeachingGripperReplay) activeTeachingGripperReplay.cancelled = true;
+    if (activePresetGripperTransition) activePresetGripperTransition.cancelled = true;
+    if (window.reBotSim && typeof window.reBotSim.cancelPendingMove === 'function') {
+      window.reBotSim.cancelPendingMove();
+    }
     cancelLowLevelPlayback();
     if (simReplayActive && typeof window.reBotSim.stopTeachingReplay === 'function') {
       window.reBotSim.stopTeachingReplay();
@@ -2269,7 +2362,7 @@ const FOLLOW_JOINT_TRAJECTORY_ACTION = `/${NS}/follow_joint_trajectory`;
   }
 
   function buildSmoothJointMovePoints(start, goal, duration) {
-    const seconds = clamp(Number(duration) || 2, 0.4, 8);
+    const seconds = clamp(Number(duration) || 2, 0.4, 30);
     const count = Math.max(10, Math.ceil(seconds * 30));
     const points = [makeTrajectoryPoint(start, 0.05)];
     for (let index = 1; index <= count; index += 1) {

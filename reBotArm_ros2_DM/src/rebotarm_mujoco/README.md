@@ -16,10 +16,15 @@ ros2 launch rebotarm_mujoco simulation.launch.py
 ```
 
 This starts the fake driver, MuJoCo physics, task server, overhead camera,
-color detector, RViz, and a joint control window. Drag the separate joint
+RViz, and a joint control window. Drag the separate joint
 sliders to move the arm; RViz follows the physical simulation's feedback and
-shows the overhead RGB image. No web connection is required. Stop any older
+shows the raw overhead RGB image. No web connection is required. Stop any older
 simulation first, and use `Ctrl+C` to stop all nodes launched here.
+
+Color detection is off by default, and camera rendering excludes the IK target
+marker overlay. Raw sensor output is published as `sensor_msgs/Image` (`rgb8`)
+on `/rebotarm/mujoco/overhead_rgb/image_raw` and `sensor_msgs/CameraInfo` on
+`/rebotarm/mujoco/overhead_rgb/camera_info`.
 
 Available launch arguments:
 
@@ -28,8 +33,8 @@ Available launch arguments:
 | `use_rviz` | `true` | Open RViz with the robot and RGB image |
 | `use_joint_gui` | `true` | Open the joint command sliders |
 | `open_viewer` | `true` | Open the MuJoCo viewer |
-| `use_camera` | `true` | Publish RGB images and enable the optional detector |
-| `use_color_detector` | `true` | Run color detection when the camera is enabled |
+| `use_camera` | `true` | Publish raw RGB images and camera calibration |
+| `use_color_detector` | `false` | Optionally run color detection when the camera is enabled |
 | `model_path` | colored B601 MJCF | Use the same model for physics, IK, and rendering |
 | `joint_map_file` | `joint_map_kinematic.yaml` | Map ROS joints to the model |
 | `rviz_config` | `rviz/simulation.rviz` | Select an RViz layout |

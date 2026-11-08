@@ -282,7 +282,9 @@ source install/setup.bash
 ros2 launch rebotarm_mujoco simulation.launch.py
 ```
 
-This launches the Fake Driver, MuJoCo physics grasping, task server, overhead RGB camera, color detector, joint slider window, and RViz. Move the sliders in the separate simulation control window to command the arm. RViz follows the physics joint feedback and displays the camera image in its `Overhead RGB` panel.
+This launches the Fake Driver, MuJoCo physics grasping, task server, overhead RGB camera, joint slider window, and RViz. Move the sliders in the separate simulation control window to command the arm. RViz follows the physics joint feedback and displays the raw camera image in its `Overhead RGB` panel.
+
+Color detection and the camera's IK target marker overlay are disabled by default. The camera publishes `/rebotarm/mujoco/overhead_rgb/image_raw` (`rgb8`) and `/rebotarm/mujoco/overhead_rgb/camera_info`.
 
 Stop an existing simulation with `Ctrl+C` before starting this launch to avoid duplicate drivers and simulation nodes. `Ctrl+C` also stops the unified launch. Sliders send commands when operated, leaving task and web commands free to move the arm between interactions.
 

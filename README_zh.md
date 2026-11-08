@@ -282,7 +282,9 @@ source install/setup.bash
 ros2 launch rebotarm_mujoco simulation.launch.py
 ```
 
-一个 launch 启动 Fake Driver、MuJoCo 物理抓取、任务服务器、俯视 RGB 相机、颜色检测、关节滑块窗口和 RViz。拖动独立的「reBotArm 仿真关节控制」窗口中的滑块即可控制关节；RViz 使用物理仿真的关节反馈显示机械臂，并在 `Overhead RGB` 面板显示相机图像。
+一个 launch 启动 Fake Driver、MuJoCo 物理抓取、任务服务器、俯视 RGB 相机、关节滑块窗口和 RViz。拖动独立的「reBotArm 仿真关节控制」窗口中的滑块即可控制关节；RViz 使用物理仿真的关节反馈显示机械臂，并在 `Overhead RGB` 面板显示相机原始图像。
+
+默认关闭颜色检测和相机中的 IK 目标标记叠加。相机发布 `/rebotarm/mujoco/overhead_rgb/image_raw`（`rgb8`）和 `/rebotarm/mujoco/overhead_rgb/camera_info`。
 
 启动前先在旧仿真终端按 `Ctrl+C`，避免重复运行 Fake Driver 和仿真节点；退出统一 launch 同样使用 `Ctrl+C`。关节滑块默认只在操作时发送指令，不会持续覆盖任务服务器或网页发来的运动指令。
 

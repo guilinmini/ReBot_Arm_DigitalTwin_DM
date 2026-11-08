@@ -48,8 +48,8 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "use_color_detector",
-                default_value="true",
-                description="Detect colored objects when the camera is enabled.",
+                default_value="false",
+                description="Optionally detect colored objects; disabled for raw camera output.",
             ),
             DeclareLaunchArgument(
                 "model_path",
@@ -111,6 +111,7 @@ def generate_launch_description():
                             "joint_state_topic": physics_joint_states,
                             "object_states_topic": object_states,
                             "virtual_grasp_enabled": "false",
+                            "render_target_marker": "false",
                         },
                     ),
                     _include(

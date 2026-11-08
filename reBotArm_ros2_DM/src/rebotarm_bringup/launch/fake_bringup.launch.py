@@ -13,6 +13,8 @@ def generate_launch_description():
     joint_state_rate = LaunchConfiguration("joint_state_rate")
     max_joint_speed = LaunchConfiguration("max_joint_speed")
     use_rviz = LaunchConfiguration("use_rviz")
+    robot_joint_state_topic = LaunchConfiguration("robot_joint_state_topic")
+    rviz_config = LaunchConfiguration("rviz_config")
 
     urdf_file = PathJoinSubstitution(
         [bringup_share, "description", "urdf", "ReBot_Arm_DM.urdf"]
@@ -20,7 +22,6 @@ def generate_launch_description():
     rviz_urdf_compat = PathJoinSubstitution(
         [bringup_share, "launch", "rviz_urdf_compat.py"]
     )
-    rviz_config = PathJoinSubstitution([bringup_share, "rviz", "rebotarm.rviz"])
     robot_description = ParameterValue(
         Command(["python3 ", rviz_urdf_compat, " ", urdf_file]), value_type=str
     )
@@ -31,6 +32,15 @@ def generate_launch_description():
             DeclareLaunchArgument("joint_state_rate", default_value="100.0"),
             DeclareLaunchArgument("max_joint_speed", default_value="1.8"),
             DeclareLaunchArgument("use_rviz", default_value="false"),
+            DeclareLaunchArgument(
+                "robot_joint_state_topic",
+                default_value=["/", arm_namespace, "/joint_states"],
+                description="Joint feedback used to publish the robot TF tree.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value=PathJoinSubstitution([bringup_share, "rviz", "rebotarm.rviz"]),
+            ),
             Node(
                 package="rebotarmcontroller",
                 executable="FakeReBotArmDriver",
@@ -50,7 +60,7 @@ def generate_launch_description():
                 name="robot_state_publisher",
                 output="screen",
                 parameters=[{"robot_description": robot_description}],
-                remappings=[("/joint_states", ["/", arm_namespace, "/joint_states"])],
+                remappings=[("/joint_states", robot_joint_state_topic)],
             ),
             Node(
                 package="rviz2",

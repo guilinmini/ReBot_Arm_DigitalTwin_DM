@@ -272,12 +272,31 @@ tau_g compare: max_abs=0.5080 Nm at joint3, mujoco=-7.4782, sdk=-6.9702, rms=0.2
 
 ### 6. Full MuJoCo Simulation Stack
 
+From the repository root, enter the ROS workspace and rebuild once to install the new launch file:
+
 ```bash
+cd reBotArm_ros2_DM
 source scripts/source_rebotarm_env.sh
-scripts/start_rebot_mujoco_all.sh
+colcon build --symlink-install --packages-select rebotarm_bringup rebotarm_mujoco
+source install/setup.bash
+ros2 launch rebotarm_mujoco simulation.launch.py
 ```
 
-One-click launch: Fake Driver + MuJoCo physics grasping + task server + RGB camera + color detection + rosbridge.
+This launches the Fake Driver, MuJoCo physics grasping, task server, overhead RGB camera, color detector, joint slider window, and RViz. Move the sliders in the separate simulation control window to command the arm. RViz follows the physics joint feedback and displays the camera image in its `Overhead RGB` panel.
+
+Stop an existing simulation with `Ctrl+C` before starting this launch to avoid duplicate drivers and simulation nodes. `Ctrl+C` also stops the unified launch. Sliders send commands when operated, leaving task and web commands free to move the arm between interactions.
+
+Optional switches:
+
+```bash
+ros2 launch rebotarm_mujoco simulation.launch.py use_joint_gui:=false
+ros2 launch rebotarm_mujoco simulation.launch.py use_rviz:=false open_viewer:=false use_joint_gui:=false
+ros2 launch rebotarm_mujoco simulation.launch.py use_camera:=false
+```
+
+Disabling the camera also disables color detection. The launch works without the web UI; to use the web console, run `./rebotarm start web` separately from the repository root.
+
+The existing `scripts/start_rebot_mujoco_all.sh` and `./rebotarm start sim` remain available for the original script-based startup.
 
 ## ROS 2 Interface
 

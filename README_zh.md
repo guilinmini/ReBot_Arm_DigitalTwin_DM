@@ -272,12 +272,31 @@ tau_g compare: max_abs=0.5080 Nm at joint3, mujoco=-7.4782, sdk=-6.9702, rms=0.2
 
 ### 6. 完整 MuJoCo 仿真栈
 
+在仓库根目录进入 ROS 工作空间，首次使用新 launch 时重新构建：
+
 ```bash
+cd reBotArm_ros2_DM
 source scripts/source_rebotarm_env.sh
-scripts/start_rebot_mujoco_all.sh
+colcon build --symlink-install --packages-select rebotarm_bringup rebotarm_mujoco
+source install/setup.bash
+ros2 launch rebotarm_mujoco simulation.launch.py
 ```
 
-一键启动：Fake Driver + MuJoCo 物理抓取 + 任务服务器 + RGB 相机 + 颜色检测 + rosbridge。
+一个 launch 启动 Fake Driver、MuJoCo 物理抓取、任务服务器、俯视 RGB 相机、颜色检测、关节滑块窗口和 RViz。拖动独立的「reBotArm 仿真关节控制」窗口中的滑块即可控制关节；RViz 使用物理仿真的关节反馈显示机械臂，并在 `Overhead RGB` 面板显示相机图像。
+
+启动前先在旧仿真终端按 `Ctrl+C`，避免重复运行 Fake Driver 和仿真节点；退出统一 launch 同样使用 `Ctrl+C`。关节滑块默认只在操作时发送指令，不会持续覆盖任务服务器或网页发来的运动指令。
+
+关闭部分窗口或图像节点：
+
+```bash
+ros2 launch rebotarm_mujoco simulation.launch.py use_joint_gui:=false
+ros2 launch rebotarm_mujoco simulation.launch.py use_rviz:=false open_viewer:=false use_joint_gui:=false
+ros2 launch rebotarm_mujoco simulation.launch.py use_camera:=false
+```
+
+`use_camera:=false` 也会关闭颜色检测。该 launch 无需网页即可控制；若要使用网页控制台，另开终端在仓库根目录执行 `./rebotarm start web`。
+
+原有 `scripts/start_rebot_mujoco_all.sh` 和 `./rebotarm start sim` 仍可用于原来的脚本启动方式。
 
 ## ROS 2 接口
 

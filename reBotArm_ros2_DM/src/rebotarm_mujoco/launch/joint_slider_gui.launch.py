@@ -8,12 +8,19 @@ def generate_launch_description():
     joint_state_topic = LaunchConfiguration("joint_state_topic")
     publish_hz = LaunchConfiguration("publish_hz")
     arm_namespace = LaunchConfiguration("arm_namespace")
+    publish_mode = LaunchConfiguration("publish_mode")
 
     return LaunchDescription(
         [
             DeclareLaunchArgument("joint_state_topic", default_value="/rebotarm/joint_states"),
             DeclareLaunchArgument("publish_hz", default_value="30.0"),
             DeclareLaunchArgument("arm_namespace", default_value="rebotarm"),
+            DeclareLaunchArgument(
+                "publish_mode",
+                default_value="joint_states",
+                choices=["joint_states", "commands"],
+                description="Publish poses directly, or send commands through the fake driver.",
+            ),
             Node(
                 package="rebotarm_mujoco",
                 executable="joint_slider_gui",
@@ -24,6 +31,7 @@ def generate_launch_description():
                         "joint_state_topic": joint_state_topic,
                         "publish_hz": publish_hz,
                         "arm_namespace": arm_namespace,
+                        "publish_mode": publish_mode,
                     }
                 ],
             ),

@@ -5,9 +5,10 @@ import tkinter as tk
 from tkinter import ttk
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from rebotarm_msgs.msg import ArmStatus
+from rebotarm_msgs.msg import ArmStatus, JointMotorCmd
 from sensor_msgs.msg import JointState
 from std_srvs.srv import Trigger
 
@@ -41,6 +42,7 @@ class JointSliderGui(Node):
         self.declare_parameter("joint_state_topic", "/rebotarm/joint_states")
         self.declare_parameter("publish_hz", 30.0)
         self.declare_parameter("arm_namespace", "rebotarm")
+        self.declare_parameter("publish_mode", "joint_states")
 
         self.topic = str(
             self.get_parameter("joint_state_topic").value or "/rebotarm/joint_states"
@@ -49,7 +51,19 @@ class JointSliderGui(Node):
         self.arm_namespace = str(
             self.get_parameter("arm_namespace").value or "rebotarm"
         ).strip("/")
-        self.publisher = self.create_publisher(JointState, self.topic, 10)
+        publish_mode = str(self.get_parameter("publish_mode").value)
+        if publish_mode not in ("joint_states", "commands"):
+            raise ValueError("publish_mode must be 'joint_states' or 'commands'")
+        self.command_mode = publish_mode == "commands"
+        self.command_publishers = {}
+        if self.command_mode:
+            for spec in SLIDERS:
+                suffix = "gripper/cmd" if spec.name == "finger_left" else f"joints/{spec.name}/cmd"
+                self.command_publishers[spec.name] = self.create_publisher(
+                    JointMotorCmd, f"/{self.arm_namespace}/{suffix}", 10
+                )
+        else:
+            self.publisher = self.create_publisher(JointState, self.topic, 10)
         self.gc_start_client = self.create_client(
             Trigger,
             f"/{self.arm_namespace}/gravity_compensation/start",
@@ -75,26 +89,28 @@ class JointSliderGui(Node):
         )
 
         self.root = tk.Tk()
-        self.root.title("reBotArm real2sim 关节滑块")
+        self.root.report_callback_exception = self._handle_callback_exception
+        self.root.title("reBotArm 仿真关节控制" if self.command_mode else "reBotArm real2sim 关节滑块")
         self.root.geometry("760x590")
         self.root.minsize(680, 530)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
         self.values: dict[str, tk.DoubleVar] = {}
         self.value_labels: dict[str, ttk.Label] = {}
-        self.continuous_publish = tk.BooleanVar(value=True)
+        # Commands are sent when a slider changes; do not continuously override
+        # trajectories or web commands with the sliders' last positions.
+        self.continuous_publish = tk.BooleanVar(value=not self.command_mode)
         self.status_text = tk.StringVar()
         self.gc_status_text = tk.StringVar(value="重力补偿：未查询")
 
         self._build_ui()
-        self._publish_once()
+        if not self.command_mode:
+            self._publish_once()
         self._schedule_publish()
         self._schedule_ros_spin()
 
-        self.get_logger().info(
-            f"joint slider GUI publishing {len(SLIDERS)} joints to {self.topic} "
-            f"at {self.publish_hz:.1f} Hz"
-        )
+        destination = f"/{self.arm_namespace}/.../cmd" if self.command_mode else self.topic
+        self.get_logger().info(f"joint slider GUI ready: mode={publish_mode}, topic={destination}")
 
     def _build_ui(self) -> None:
         self.root.columnconfigure(0, weight=1)
@@ -108,7 +124,11 @@ class JointSliderGui(Node):
         title.grid(row=0, column=0, sticky="w")
         subtitle = ttk.Label(
             header,
-            text=f"发布话题：{self.topic}    频率：{self.publish_hz:.1f} Hz",
+            text=(
+                "仿真控制：拖动滑块立即发送关节指令；夹爪数值为单侧行程"
+                if self.command_mode
+                else f"发布话题：{self.topic}    频率：{self.publish_hz:.1f} Hz"
+            ),
         )
         subtitle.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
@@ -203,7 +223,9 @@ class JointSliderGui(Node):
 
     def _on_slider_change(self, spec: SliderSpec) -> None:
         self._refresh_value_label(spec)
-        if not self.continuous_publish.get():
+        if self.command_mode:
+            self._publish_joint_command(spec)
+        elif not self.continuous_publish.get():
             self.status_text.set("滑块已改变，点击“发布一次”发送当前姿态")
 
     def _refresh_value_label(self, spec: SliderSpec) -> None:
@@ -218,11 +240,22 @@ class JointSliderGui(Node):
             self.root.after(delay_ms, self._schedule_publish)
 
     def _schedule_ros_spin(self) -> None:
-        if rclpy.ok():
+        if not rclpy.ok():
+            self.close()
+            return
+        try:
             rclpy.spin_once(self, timeout_sec=0.0)
-            self.root.after(30, self._schedule_ros_spin)
+        except (KeyboardInterrupt, ExternalShutdownException):
+            self.close()
+            return
+        self.root.after(30, self._schedule_ros_spin)
 
     def _publish_once(self) -> None:
+        if self.command_mode:
+            for spec in SLIDERS:
+                self._publish_joint_command(spec)
+            return
+
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.name = [spec.name for spec in SLIDERS]
@@ -236,6 +269,20 @@ class JointSliderGui(Node):
             f"已发布 {len(msg.name)} 个关节到 {self.topic}，夹爪={gripper:.4f} m"
         )
 
+    def _publish_joint_command(self, spec: SliderSpec) -> None:
+        value = float(self.values[spec.name].get())
+        msg = JointMotorCmd()
+        msg.stamp = self.get_clock().now().to_msg()
+        msg.mode = JointMotorCmd.MODE_POS_VEL
+        msg.use_pos = True
+        msg.use_vlim = True
+        msg.vlim = 1.2
+        # The driver accepts total gripper width; the slider uses the MJCF
+        # single-finger displacement, just like the legacy pose publisher.
+        msg.pos = value * 2.0 if spec.name == "finger_left" else value
+        self.command_publishers[spec.name].publish(msg)
+        self.status_text.set(f"已发送 {spec.name}：{value:.4f} {spec.unit}")
+
     def reset_all(self) -> None:
         for spec in SLIDERS:
             self.values[spec.name].set(spec.default)
@@ -245,7 +292,10 @@ class JointSliderGui(Node):
     def set_gripper(self, value: float) -> None:
         self.values["finger_left"].set(value)
         self._refresh_value_label(SLIDERS[-1])
-        self._publish_once()
+        if self.command_mode:
+            self._publish_joint_command(SLIDERS[-1])
+        else:
+            self._publish_once()
 
     def start_gravity_compensation(self) -> None:
         self._call_gravity_service(self.gc_start_client, "启动重力补偿")
@@ -296,6 +346,14 @@ class JointSliderGui(Node):
     def close(self) -> None:
         self.root.quit()
 
+    def _handle_callback_exception(self, exception_type, exception, traceback) -> None:
+        # Tk catches exceptions around the entire callback, including signals
+        # delivered before _schedule_ros_spin itself is entered.
+        if issubclass(exception_type, (KeyboardInterrupt, ExternalShutdownException)):
+            self.close()
+            return
+        tk.Tk.report_callback_exception(self.root, exception_type, exception, traceback)
+
     def run(self) -> None:
         self.root.mainloop()
 
@@ -306,10 +364,11 @@ def main(args=None) -> None:
     try:
         node = JointSliderGui()
         node.run()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         if node is not None:
+            node.root.destroy()
             node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

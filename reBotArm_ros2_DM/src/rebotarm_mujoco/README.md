@@ -3,6 +3,53 @@
 This package mirrors `/rebotarm/joint_states` into a MuJoCo model. The first
 version is read-only from the robot side: it does not command real hardware.
 
+## Full simulation with RViz
+
+From the repository root:
+
+```bash
+cd reBotArm_ros2_DM
+source scripts/source_rebotarm_env.sh
+colcon build --symlink-install --packages-select rebotarm_bringup rebotarm_mujoco
+source install/setup.bash
+ros2 launch rebotarm_mujoco simulation.launch.py
+```
+
+This starts the fake driver, MuJoCo physics, task server, overhead camera,
+color detector, RViz, and a joint control window. Drag the separate joint
+sliders to move the arm; RViz follows the physical simulation's feedback and
+shows the overhead RGB image. No web connection is required. Stop any older
+simulation first, and use `Ctrl+C` to stop all nodes launched here.
+
+Available launch arguments:
+
+| Argument | Default | Purpose |
+| --- | --- | --- |
+| `use_rviz` | `true` | Open RViz with the robot and RGB image |
+| `use_joint_gui` | `true` | Open the joint command sliders |
+| `open_viewer` | `true` | Open the MuJoCo viewer |
+| `use_camera` | `true` | Publish RGB images and enable the optional detector |
+| `use_color_detector` | `true` | Run color detection when the camera is enabled |
+| `model_path` | colored B601 MJCF | Use the same model for physics, IK, and rendering |
+| `joint_map_file` | `joint_map_kinematic.yaml` | Map ROS joints to the model |
+| `rviz_config` | `rviz/simulation.rviz` | Select an RViz layout |
+
+For a run without GUI windows:
+
+```bash
+ros2 launch rebotarm_mujoco simulation.launch.py use_rviz:=false open_viewer:=false use_joint_gui:=false
+```
+
+In the unified launch, the sliders use `publish_mode:=commands` and publish
+`JointMotorCmd` messages through the fake driver. Only the fake driver publishes
+`/rebotarm/joint_states`; MuJoCo publishes the physical feedback on
+`/rebotarm/mujoco/physics_joint_states`, which feeds the robot TF publisher and
+camera. Slider changes send only the changed joint, and continuous command
+publishing is off by default to allow task and web commands to run.
+Gripper sliders use single-finger travel (0–0.05 m), converted to total opening
+(0–0.10 m) for the driver. Standalone `joint_slider_gui.launch.py` keeps its
+original `publish_mode:=joint_states` default for direct real2sim use.
+
 ## Run
 
 ```bash

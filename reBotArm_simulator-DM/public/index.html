@@ -273,7 +273,7 @@
         <div style="line-height:1.7;font-size:13px;margin-bottom:12px;">
           <p data-i18n-html="help.s7.diag"><b>检测 ROS</b>：扫描当前 ROS 环境的 topic 和 service，检查关键接口是否可用。</p>
           <p data-i18n-html="help.s7.log"><b>ROS 实时日志</b>：显示所有 ROS 操作的请求和响应，包括成功/失败/警告。排查问题时先看这里。</p>
-          <p data-i18n-html="help.s7.preset"><b>姿态预设</b>：预设的关节角度组合，一键到达常用姿态。</p>
+          <p data-i18n-html="help.s7.preset"><b>姿态预设</b>：预设之间按关节角差自动计算时长，以限速平滑轨迹切换，夹爪同步渐变。</p>
         </div>
 
         <h4 style="color:#ffe0b0;margin-bottom:4px;" data-i18n="help.warn.title">⚠ 安全须知</h4>
@@ -369,10 +369,10 @@
   <script src="/lib/three-r128.min.js"></script>
   <script src="/lib/STLLoader-umd.js"></script>
   <script src="/lib/URDFLoader.js"></script>
-  <script src="/js/i18n.js?v=20260920-manualgripper4"></script>
+  <script src="/js/i18n.js?v=20260921-dm-preset-smooth1"></script>
   <script src="/js/ros/rebot-ros-client.js?v=20260920-manualgripper3"></script>
-  <script src="/js/rebot-sim.js?v=20260920-gripperreplay1"></script>
-  <script src="/js/ros/rebot-ros-ui.js?v=20260920-gripperreplay1"></script>
+  <script src="/js/rebot-sim.js?v=20260921-dm-preset-smooth1"></script>
+  <script src="/js/ros/rebot-ros-ui.js?v=20260921-dm-preset-smooth1"></script>
   <script src="/js/rebot-llm.js?v=20260807-i18n1"></script>
 </body>
 </html>

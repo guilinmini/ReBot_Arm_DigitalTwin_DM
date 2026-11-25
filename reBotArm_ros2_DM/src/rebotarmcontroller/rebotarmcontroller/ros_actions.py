@@ -196,7 +196,6 @@ class ArmActions:
             return result
 
         trajectory_done = False
-        start = time.monotonic()
         feedback = FollowJointTrajectory.Feedback()
         feedback.joint_names = list(trajectory.joint_names)
 
@@ -204,6 +203,10 @@ class ArmActions:
         self._node.publish_arm_status()
         try:
             self._hardware.ensure_pos_vel_control()
+            # Mode preparation may block on the motor bus. Start the trajectory
+            # clock only after it completes, otherwise the first segment can be
+            # skipped and the arm jumps toward a later waypoint.
+            start = time.monotonic()
 
             for index in range(1, len(sample_times)):
                 target_time = sample_times[index]

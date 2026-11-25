@@ -65,6 +65,9 @@ const t = window.rebotI18n ? window.rebotI18n.t : (k) => k;
     inspect: { label: 'preset.inspect', angles: [18, -36, -26, -16, 45, 90, 45] },
     fold: { label: 'preset.fold', angles: [0, -88, -118, 78, 0, 0, 0] }
  };
+ const PRESET_MIN_DURATION_MS = 1200;
+ const PRESET_MAX_DURATION_MS = 6000;
+ const PRESET_PEAK_SPEED_RAD_S = 0.55;
 
   let scene;  let camera;
   let renderer;
@@ -984,11 +987,27 @@ const t = window.rebotI18n ? window.rebotI18n.t : (k) => k;
       const raw = preset.angles[index] || 0;
       next[joint.name] = clamp(joint.unit === 'm' ? raw / 1000 : raw * DEG, joint.min, joint.max);
     });
-    moveToAngles(next, immediate ? 1 : 850, {
+    const transitionDuration = immediate ? 1 : presetTransitionDurationMs(next);
+    moveToAngles(next, transitionDuration, {
       source: immediate ? 'init' : 'preset',
       label: t(preset.label),
       emitBatch: !immediate
     });
+  }
+
+  function presetTransitionDurationMs(next) {
+    let maxDelta = 0;
+    jointDefs.slice(0, 6).forEach((joint) => {
+      const start = Number(currentAngles[joint.name]) || 0;
+      const end = Number(next[joint.name]);
+      if (Number.isFinite(end)) maxDelta = Math.max(maxDelta, Math.abs(end - start));
+    });
+    // Smoothstep reaches 1.5 times its average speed at mid-trajectory.
+    return clamp(
+      (1.5 * maxDelta / PRESET_PEAK_SPEED_RAD_S) * 1000,
+      PRESET_MIN_DURATION_MS,
+      PRESET_MAX_DURATION_MS
+    );
   }
 
   function setJoint(name, rad, fromUser, options) {
@@ -1089,7 +1108,9 @@ const t = window.rebotI18n ? window.rebotI18n.t : (k) => k;
     updateGhostTarget(nextAngles);
     setGhostDisplay(true);
     if (options && options.emitBatch) {
-      emitJointBatch(nextAngles, options.source || 'trajectory-target', options.label || '');
+      emitJointBatch(nextAngles, options.source || 'trajectory-target', options.label || '', {
+        durationMs: moveDuration
+      });
     }
   }
 
@@ -2391,7 +2412,7 @@ const t = window.rebotI18n ? window.rebotI18n.t : (k) => k;
     });
   }
 
-  function emitJointBatch(angles, source, label) {
+  function emitJointBatch(angles, source, label, options) {
     const joints = {};
     jointDefs.forEach((joint) => {
       if (typeof angles[joint.name] === 'number') {
@@ -2404,6 +2425,9 @@ const t = window.rebotI18n ? window.rebotI18n.t : (k) => k;
       joints,
       source,
       label,
+      duration_ms: options && Number.isFinite(Number(options.durationMs))
+        ? Math.max(1, Number(options.durationMs))
+        : 0,
       stamp: performance.now()
     });
   }
@@ -2812,6 +2836,12 @@ const t = window.rebotI18n ? window.rebotI18n.t : (k) => k;
     },
     stopTeachingReplay() {
       stopTeachingReplay();
+    },
+    cancelPendingMove() {
+      moveStart = 0;
+      gripperMotion = null;
+      stopPath();
+      setGhostDisplay(false);
     },
     importTeachingText(text) {
       importTeachingText(text);
